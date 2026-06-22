@@ -1,0 +1,61 @@
+# Free always-on deployment: runs both models every weekday evening and publishes
+# the SMA + EMA dashboards to GitHub Pages (a real public link).
+#
+# Setup (one time):
+#   1. Push this project to a GitHub repo.
+#   2. Repo Settings > Pages > Source: "GitHub Actions".
+#   3. Repo Settings > Secrets and variables > Actions: add SMARTAPI_KEY,
+#      SMARTAPI_CLIENT_CODE, SMARTAPI_MPIN, SMARTAPI_TOTP_SECRET (recommended for
+#      cloud — NSE's public files often block datacenter IPs; the SmartAPI is reliable).
+#   4. The schedule below runs Mon-Fri ~18:30 IST; you can also run it on demand
+#      from the Actions tab ("Run workflow").
+name: daily-update
+
+on:
+  schedule:
+    - cron: "0 13 * * 1-5"      # 13:00 UTC = 18:30 IST, Monday-Friday
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Build SMA + EMA dashboards
+        env:
+          SMARTAPI_KEY: ${{ secrets.SMARTAPI_KEY }}
+          SMARTAPI_CLIENT_CODE: ${{ secrets.SMARTAPI_CLIENT_CODE }}
+          SMARTAPI_MPIN: ${{ secrets.SMARTAPI_MPIN }}
+          SMARTAPI_TOTP_SECRET: ${{ secrets.SMARTAPI_TOTP_SECRET }}
+        run: |
+          python -m jobs.run_daily --ma sma --force --fresh --backfill-years 6
+          python build_static.py --ma sma
+          python -m jobs.run_daily --ma ema --force --fresh --backfill-years 6
+          python build_static.py --ma ema
+          python build_index.py
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: data
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
