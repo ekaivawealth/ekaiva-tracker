@@ -41,6 +41,7 @@ jobs:
           SMARTAPI_MPIN: ${{ secrets.SMARTAPI_MPIN }}
           SMARTAPI_TOTP_SECRET: ${{ secrets.SMARTAPI_TOTP_SECRET }}
         run: |
+          mkdir -p data
           python -m jobs.run_daily --ma sma --force --fresh --backfill-years 6
           python build_static.py --ma sma
           python -m jobs.run_daily --ma ema --force --fresh --backfill-years 6
