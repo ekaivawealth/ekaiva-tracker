@@ -3,6 +3,7 @@ numpy>=1.26
 requests>=2.31
 smartapi-python>=1.4
 logzero>=1.7
+websocket-client>=1.7
 pyotp>=2.9
 yfinance>=0.2.40
 streamlit>=1.34
