@@ -78,8 +78,12 @@ def reset():
 def upsert_daily(index_name: str, series: pd.Series):
     if series is None or len(series) == 0:
         return
-    rows = [(index_name, pd.Timestamp(d).strftime("%Y-%m-%d"), float(v))
-            for d, v in series.dropna().items()]
+    rows = []
+    for d, v in series.dropna().items():
+        try:
+            rows.append((index_name, pd.Timestamp(d).strftime("%Y-%m-%d"), float(v)))
+        except Exception:
+            continue  # skip unparseable index entries (e.g. ^INDIAVIX ticker row)
     with conn() as c:
         c.executemany(
             "INSERT INTO daily_prices(index_name, date, close) VALUES (?,?,?) "
