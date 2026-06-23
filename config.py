@@ -115,6 +115,53 @@ SMARTAPI_TOKEN_OVERRIDES = {
     # "India VIX": "99926017",
 }
 
+# Yahoo Finance tickers for each index.
+# None  -> index is not available on Yahoo Finance; will show as "insufficient".
+YFINANCE_TICKERS = {
+    # Broad / Size
+    "Nifty 50":                          "^NSEI",
+    "Nifty Next 50":                     "^NSMIDCP",
+    "Nifty 500":                         "^CNX500",
+    "Nifty Midcap 150":                  "^NSEMDCP150",
+    "Nifty Smallcap 250":                "^CNXSC",
+    "Nifty Microcap 250":                "^NIFTYMICROCAP250",
+    "Nifty LargeMidcap 250":             "^NIFTY_LARGEMIDCAP_250",
+    "Nifty Alpha 50":                    "^NIFTYALPHA50",
+    # Sectoral
+    "Nifty Pharma":                      "^CNXPHARMA",
+    "Nifty Healthcare":                  "^CNXHEALTH",
+    "Nifty MidSmall Healthcare":         "^NIFTY_MIDSMALL_HLTHCRE",
+    "Nifty IT":                          "^CNXIT",
+    "Nifty Auto":                        "^CNXAUTO",
+    "Nifty Metal":                       "^CNXMETAL",
+    "Nifty FMCG":                        "^CNXFMCG",
+    "Nifty Media":                       "^CNXMEDIA",
+    "Nifty Energy":                      "^CNXENERGY",
+    "Nifty Oil & Gas":                   "^CNXOILGAS",
+    "Nifty Chemicals":                   "^CNXCHEM",
+    "Nifty Private Bank":                "^CNXPVTBANK",
+    "Nifty PSU Bank":                    "^CNXPSUBNK",
+    "Nifty Financial Services":          "^CNXFIN",
+    "Nifty MidSmall Financial Services": "^NIFTY_MIDSMALL_FINSRV",
+    "Nifty Capital Market":              "^NIFTY_CAP_MARKET",
+    "Nifty Consumer Durables":           "^CNXCONSDUR",
+    "Nifty Realty":                      "^CNXREALTY",
+    # Thematic
+    "Nifty CPSE":                        "^CNXCPSE",
+    "Nifty India Tourism":               "^NIFTYINDIATUR",
+    "Nifty Commodities":                 "^CNXCMDT",
+    "Nifty Transport & Logistics":       "^NIFTY_TRNSPRTN_LGSTC",
+    "Nifty India Consumption":           "^CNXCONSUM",
+    "Nifty Rural":                       "^NIFTYRURAL",
+    "Nifty Housing":                     "^NIFTYHOUSING",
+    "Nifty Infrastructure":              "^CNXINFRA",
+    "Nifty Defence":                     "^NIFTYDEFENCE",
+    "Nifty India Manufacturing":         "^NIFTYINDMFG",
+    "Nifty MNC":                         "^CNXMNC",
+    # Volatility
+    "India VIX":                         "^INDIAVIX",
+}
+
 # Paths — separated per MA type so SMA and EMA are fully independent models.
 def _suffix():
     return MA_TYPE.lower()

@@ -344,6 +344,58 @@ class VixSource:
 
 
 # ===========================================================================
+# Yahoo Finance (primary source — no account, works from datacenter IPs)
+# ===========================================================================
+class YFinanceSource:
+    name = "yfinance"
+
+    def daily_history(self, name, nse_label, token, years) -> pd.Series:
+        ticker = config.YFINANCE_TICKERS.get(name)
+        if not ticker:
+            return pd.Series(dtype="float64")
+        try:
+            import yfinance as yf
+            period = f"{max(int(years), 1)}y"
+            df = yf.download(ticker, period=period, interval="1d",
+                             progress=False, auto_adjust=False)
+            if df is None or df.empty:
+                return pd.Series(dtype="float64")
+            # yfinance >=0.2 may return MultiIndex columns
+            close = df["Close"]
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            s = close.dropna()
+            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+            s = s[~s.index.duplicated(keep="last")].sort_index()
+            s.name = name
+            return s
+        except Exception:
+            return pd.Series(dtype="float64")
+
+    def latest_close(self, name, nse_label, token):
+        # Fetch only last 30 days to keep it fast
+        ticker = config.YFINANCE_TICKERS.get(name)
+        if not ticker:
+            return None
+        try:
+            import yfinance as yf
+            df = yf.download(ticker, period="1mo", interval="1d",
+                             progress=False, auto_adjust=False)
+            if df is None or df.empty:
+                return None
+            close = df["Close"]
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            s = close.dropna()
+            if len(s) == 0:
+                return None
+            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
+            return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
+        except Exception:
+            return None
+
+
+# ===========================================================================
 # Synthetic (offline tests + demo)
 # ===========================================================================
 class SyntheticSource:
@@ -404,16 +456,15 @@ def resolve_mappings(primary):
 def get_sources(use_synthetic: bool = False):
     """Return (equity_source, fallback_source, vix_source, primary_for_tokens).
 
-    If SmartAPI is configured as primary but no SMARTAPI_KEY is set, automatically
-    use the no-account niftyindices public snapshots instead (logged by the caller).
+    Primary source is Yahoo Finance (yfinance) — no account needed, works from
+    GitHub Actions / datacenter IPs.  NiftyIndices is kept as a fallback for any
+    index yfinance cannot supply (YFINANCE_TICKERS entry is None).
+    primary_for_tokens is None because yfinance does not use SmartAPI scrip-master
+    tokens; tickers are looked up directly from config.YFINANCE_TICKERS.
     """
     if use_synthetic:
         syn = SyntheticSource()
         return syn, syn, syn, None
-    smart = SmartApiSource()
+    yf_src = YFinanceSource()
     nifty = NiftyIndicesSource()
-    have_smart = bool(os.environ.get("SMARTAPI_KEY"))
-    if config.DATA_PRIMARY == "smartapi" and have_smart:
-        return smart, nifty, VixSource(smart), smart
-    # no credentials (or niftyindices chosen) -> public NSE files, no account needed
-    return nifty, nifty, VixSource(smart if have_smart else None), None
+    return yf_src, nifty, yf_src, None
