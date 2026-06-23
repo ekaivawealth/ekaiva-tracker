@@ -42,9 +42,9 @@ jobs:
           SMARTAPI_TOTP_SECRET: ${{ secrets.SMARTAPI_TOTP_SECRET }}
         run: |
           mkdir -p data
-          python -m jobs.run_daily --ma sma --force --fresh --backfill-years 4
+          python -m jobs.run_daily --ma sma --force --fresh --backfill-years 5
           python build_static.py --ma sma
-          python -m jobs.run_daily --ma ema --force --fresh --backfill-years 4
+          python -m jobs.run_daily --ma ema --force --fresh --backfill-years 5
           python build_static.py --ma ema
           python build_index.py
       - uses: actions/upload-pages-artifact@v3

@@ -373,14 +373,16 @@ class YFinanceSource:
             return pd.Series(dtype="float64")
         try:
             import yfinance as yf
-            # Map years to a valid yfinance period string.
-            # start/end parameters behave differently from period for some NSE tickers
-            # (start/end silently returns empty; period works reliably).
-            if years >= 10:
+            # Map years to a valid yfinance period string (round UP to nearest valid value).
+            # Valid strings: 1y, 2y, 5y, 10y, max.
+            # start/end parameters silently return empty for many NSE tickers; period works.
+            if years > 10:
+                period = "max"
+            elif years > 5:
                 period = "10y"
-            elif years >= 5:
-                period = "5y"
-            elif years >= 2:
+            elif years > 2:
+                period = "5y"   # covers 3, 4, 5 years — enough for SMA200 (200 weeks)
+            elif years > 1:
                 period = "2y"
             else:
                 period = "1y"
