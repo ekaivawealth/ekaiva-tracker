@@ -391,13 +391,16 @@ class YFinanceSource:
             self._ready = True
             return
 
+        missing, short = [], []
         for name, ticker in ticker_map.items():
             if ticker not in close_df.columns:
                 self._cache[name] = pd.Series(dtype="float64")
+                missing.append(f"{name} ({ticker})")
                 continue
             s = close_df[ticker].dropna()
             if len(s) == 0:
                 self._cache[name] = pd.Series(dtype="float64")
+                missing.append(f"{name} ({ticker})")
                 continue
             idx = pd.to_datetime(s.index)
             if idx.tz is not None:
@@ -406,6 +409,16 @@ class YFinanceSource:
             s = pd.Series(s.values, index=idx, name=name)
             s = s[~s.index.duplicated(keep="last")].sort_index()
             self._cache[name] = s
+            rows = len(s)
+            if rows < 200:
+                short.append(f"{name} ({ticker}): {rows} rows")
+            else:
+                print(f"  [yf] {name} ({ticker}): {rows} rows OK", flush=True)
+
+        if missing:
+            print(f"  [yf] NO DATA (wrong ticker?): {', '.join(missing)}", flush=True)
+        if short:
+            print(f"  [yf] SHORT DATA (<200 rows): {'; '.join(short)}", flush=True)
 
         self._ready = True
 
