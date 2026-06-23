@@ -120,15 +120,15 @@ YFINANCE_TICKERS = {
     # Broad / Size
     "Nifty 50":                          "^NSEI",
     "Nifty Next 50":                     "^NSMIDCP",
-    "Nifty 500":                         "^CNX500",
-    "Nifty Midcap 150":                  "^NSEMDCP150",
-    "Nifty Smallcap 250":                "^CNXSC",
-    "Nifty Microcap 250":                "^NIFTYMICROCAP250",
-    "Nifty LargeMidcap 250":             "^NIFTY_LARGEMIDCAP_250",
+    "Nifty 500":                         "^CRSLDX",              # ^CNX500 doesn't exist on YF
+    "Nifty Midcap 150":                  "NIFTYMIDCAP150.NS",     # ^NSEMDCP150 doesn't exist
+    "Nifty Smallcap 250":                "NIFTYSMLCAP250.NS",     # ^CNXSC was returning 1 row
+    "Nifty Microcap 250":                "NIFTY_MICROCAP250.NS",  # ^NIFTYMICROCAP250 doesn't exist
+    "Nifty LargeMidcap 250":             "NIFTY_LARGEMID250.NS",  # ^NIFTY_LARGEMIDCAP_250 doesn't exist
     "Nifty Alpha 50":                    "^NIFTYALPHA50",
     # Sectoral
     "Nifty Pharma":                      "^CNXPHARMA",
-    "Nifty Healthcare":                  "^CNXHEALTH",
+    "Nifty Healthcare":                  "NIFTY_HEALTHCARE.NS",   # ^CNXHEALTH doesn't exist
     "Nifty MidSmall Healthcare":         "^NIFTY_MIDSMALL_HLTHCRE",
     "Nifty IT":                          "^CNXIT",
     "Nifty Auto":                        "^CNXAUTO",
@@ -136,25 +136,25 @@ YFINANCE_TICKERS = {
     "Nifty FMCG":                        "^CNXFMCG",
     "Nifty Media":                       "^CNXMEDIA",
     "Nifty Energy":                      "^CNXENERGY",
-    "Nifty Oil & Gas":                   "^CNXOILGAS",
+    "Nifty Oil & Gas":                   "NIFTY_OIL_AND_GAS.NS",  # ^CNXOILGAS doesn't exist
     "Nifty Chemicals":                   "^CNXCHEM",
-    "Nifty Private Bank":                "^CNXPVTBANK",
+    "Nifty Private Bank":                "NIFTYPVTBANK.NS",        # ^CNXPVTBANK doesn't exist
     "Nifty PSU Bank":                    "^CNXPSUBNK",
-    "Nifty Financial Services":          "^CNXFIN",
+    "Nifty Financial Services":          "NIFTY_FIN_SERVICE.NS",  # ^CNXFIN = FINSRV25/50 (wrong index)
     "Nifty MidSmall Financial Services": "^NIFTY_MIDSMALL_FINSRV",
     "Nifty Capital Market":              "^NIFTY_CAP_MARKET",
-    "Nifty Consumer Durables":           "^CNXCONSDUR",
+    "Nifty Consumer Durables":           "NIFTY_CONSR_DURBL.NS",  # ^CNXCONSDUR doesn't exist
     "Nifty Realty":                      "^CNXREALTY",
     # Thematic
     "Nifty CPSE":                        "^CNXCPSE",
-    "Nifty India Tourism":               "^NIFTYINDIATUR",
+    "Nifty India Tourism":               "NIFTY_IND_TOURISM.NS",  # ^NIFTYINDIATUR doesn't exist
     "Nifty Commodities":                 "^CNXCMDT",
     "Nifty India Consumption":           "^CNXCONSUM",
     "Nifty Rural":                       "^NIFTYRURAL",
     "Nifty Housing":                     "^NIFTYHOUSING",
     "Nifty Infrastructure":              "^CNXINFRA",
     "Nifty Defence":                     "^NIFTYDEFENCE",
-    "Nifty India Manufacturing":         "^NIFTYINDMFG",
+    "Nifty India Manufacturing":         "NIFTY_INDIA_MFG.NS",    # ^NIFTYINDMFG doesn't exist
     "Nifty MNC":                         "^CNXMNC",
     # Volatility
     "India VIX":                         "^INDIAVIX",

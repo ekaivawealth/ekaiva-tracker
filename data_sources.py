@@ -360,48 +360,48 @@ class YFinanceSource:
         self._ready = False
 
     def _prefetch(self):
-        """One-time batch download of all tickers. Results cached in self._cache."""
+        """Individual download per ticker with 1-second delays.
+
+        Yahoo Finance's bulk download endpoint silently drops many NSE index tickers
+        (those using ^ prefix that aren't in the bulk-index whitelist). Individual
+        calls with rate-limit delays are slower but fully reliable from datacenter IPs.
+        """
         if self._ready:
             return
         import yfinance as yf
+        import time
 
-        # Build name→ticker map for all indices that have a ticker assigned
         ticker_map = {name: tkr for name, tkr in config.YFINANCE_TICKERS.items() if tkr}
         if not ticker_map:
             self._ready = True
             return
 
-        tickers_str = " ".join(ticker_map.values())
-        try:
-            df = yf.download(tickers_str, period="5y", interval="1d",
-                             progress=False, auto_adjust=False)
-        except Exception:
-            self._ready = True
-            return
-
-        if df is None or df.empty:
-            self._ready = True
-            return
-
-        # With multiple tickers yf.download always returns MultiIndex columns:
-        # level-0 = field (Open/High/Low/Close/…), level-1 = ticker symbol
-        try:
-            close_df = df["Close"]  # DataFrame: rows=dates, cols=ticker symbols
-        except KeyError:
-            self._ready = True
-            return
-
-        missing, short = [], []
+        print(f"  [yf] Fetching {len(ticker_map)} tickers individually...", flush=True)
         for name, ticker in ticker_map.items():
-            if ticker not in close_df.columns:
+            time.sleep(1.0)   # 1 s gap — keeps us under Yahoo Finance rate limit
+            try:
+                df = yf.download(ticker, period="5y", interval="1d",
+                                 progress=False, auto_adjust=False)
+            except Exception as e:
                 self._cache[name] = pd.Series(dtype="float64")
-                missing.append(f"{name} ({ticker})")
+                print(f"  [yf] ERROR {name} ({ticker}): {e}", flush=True)
                 continue
-            s = close_df[ticker].dropna()
+
+            if df is None or df.empty:
+                self._cache[name] = pd.Series(dtype="float64")
+                print(f"  [yf] EMPTY {name} ({ticker})", flush=True)
+                continue
+
+            # yfinance >= 0.2 may return MultiIndex for single-ticker download
+            close = df["Close"]
+            if isinstance(close, pd.DataFrame):
+                close = close.iloc[:, 0]
+            s = close.dropna()
             if len(s) == 0:
                 self._cache[name] = pd.Series(dtype="float64")
-                missing.append(f"{name} ({ticker})")
+                print(f"  [yf] EMPTY {name} ({ticker})", flush=True)
                 continue
+
             idx = pd.to_datetime(s.index)
             if idx.tz is not None:
                 idx = idx.tz_convert(None)
@@ -409,16 +409,7 @@ class YFinanceSource:
             s = pd.Series(s.values, index=idx, name=name)
             s = s[~s.index.duplicated(keep="last")].sort_index()
             self._cache[name] = s
-            rows = len(s)
-            if rows < 200:
-                short.append(f"{name} ({ticker}): {rows} rows")
-            else:
-                print(f"  [yf] {name} ({ticker}): {rows} rows OK", flush=True)
-
-        if missing:
-            print(f"  [yf] NO DATA (wrong ticker?): {', '.join(missing)}", flush=True)
-        if short:
-            print(f"  [yf] SHORT DATA (<200 rows): {'; '.join(short)}", flush=True)
+            print(f"  [yf] OK {name} ({ticker}): {len(s)} rows", flush=True)
 
         self._ready = True
 
