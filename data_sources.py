@@ -355,8 +355,9 @@ class YFinanceSource:
             return pd.Series(dtype="float64")
         try:
             import yfinance as yf
-            period = f"{max(int(years), 1)}y"
-            df = yf.download(ticker, period=period, interval="1d",
+            # yfinance only accepts specific period strings (1y,2y,5y,10y,max).
+            # "6y" is invalid and silently returns empty — always use "max" for backfill.
+            df = yf.download(ticker, period="max", interval="1d",
                              progress=False, auto_adjust=False)
             if df is None or df.empty:
                 return pd.Series(dtype="float64")
