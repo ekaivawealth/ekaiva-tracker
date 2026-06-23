@@ -347,55 +347,83 @@ class VixSource:
 # Yahoo Finance (primary source — no account, works from datacenter IPs)
 # ===========================================================================
 class YFinanceSource:
+    """Downloads ALL tickers in ONE batch call to avoid Yahoo Finance rate-limiting.
+
+    When called 37 times individually from a datacenter IP (GitHub Actions),
+    Yahoo Finance throttles after ~14 calls and returns empty data for the rest.
+    A single batch download bypasses this completely.
+    """
     name = "yfinance"
 
-    @staticmethod
-    def _clean(df, name) -> pd.Series:
-        """Extract a clean daily close Series from a yf.download() result."""
+    def __init__(self):
+        self._cache: dict[str, pd.Series] = {}
+        self._ready = False
+
+    def _prefetch(self):
+        """One-time batch download of all tickers. Results cached in self._cache."""
+        if self._ready:
+            return
+        import yfinance as yf
+
+        # Build name→ticker map for all indices that have a ticker assigned
+        ticker_map = {name: tkr for name, tkr in config.YFINANCE_TICKERS.items() if tkr}
+        if not ticker_map:
+            self._ready = True
+            return
+
+        tickers_str = " ".join(ticker_map.values())
+        try:
+            df = yf.download(tickers_str, period="5y", interval="1d",
+                             progress=False, auto_adjust=False)
+        except Exception:
+            self._ready = True
+            return
+
         if df is None or df.empty:
-            return pd.Series(dtype="float64")
-        close = df["Close"]
-        # yfinance >= 0.2 returns MultiIndex columns for single-ticker download
-        if isinstance(close, pd.DataFrame):
-            close = close.iloc[:, 0]
-        s = close.dropna()
-        if len(s) == 0:
-            return pd.Series(dtype="float64")
-        idx = pd.to_datetime(s.index)
-        if idx.tz is not None:
-            idx = idx.tz_convert(None)
-        idx = idx.normalize()
-        s = pd.Series(s.values, index=idx, name=name)
-        s = s[~s.index.duplicated(keep="last")].sort_index()
-        return s
+            self._ready = True
+            return
+
+        # With multiple tickers yf.download always returns MultiIndex columns:
+        # level-0 = field (Open/High/Low/Close/…), level-1 = ticker symbol
+        try:
+            close_df = df["Close"]  # DataFrame: rows=dates, cols=ticker symbols
+        except KeyError:
+            self._ready = True
+            return
+
+        for name, ticker in ticker_map.items():
+            if ticker not in close_df.columns:
+                self._cache[name] = pd.Series(dtype="float64")
+                continue
+            s = close_df[ticker].dropna()
+            if len(s) == 0:
+                self._cache[name] = pd.Series(dtype="float64")
+                continue
+            idx = pd.to_datetime(s.index)
+            if idx.tz is not None:
+                idx = idx.tz_convert(None)
+            idx = idx.normalize()
+            s = pd.Series(s.values, index=idx, name=name)
+            s = s[~s.index.duplicated(keep="last")].sort_index()
+            self._cache[name] = s
+
+        self._ready = True
 
     def daily_history(self, name, nse_label, token, years) -> pd.Series:
-        ticker = config.YFINANCE_TICKERS.get(name)
-        if not ticker:
+        if not config.YFINANCE_TICKERS.get(name):
             return pd.Series(dtype="float64")
         try:
-            import yfinance as yf
-            # "5y" is a valid Yahoo Finance period and gives enough history for SMA200
-            df = yf.download(ticker, period="5y", interval="1d",
-                             progress=False, auto_adjust=False)
-            return self._clean(df, name)
+            self._prefetch()
+            return self._cache.get(name, pd.Series(dtype="float64"))
         except Exception:
             return pd.Series(dtype="float64")
 
     def latest_close(self, name, nse_label, token):
-        ticker = config.YFINANCE_TICKERS.get(name)
-        if not ticker:
+        # Reuse the cached data — the batch already includes today's close
+        s = self.daily_history(name, nse_label, token, years=0)
+        if len(s) == 0:
             return None
-        try:
-            import yfinance as yf
-            df = yf.download(ticker, period="5d", interval="1d",
-                             progress=False, auto_adjust=False)
-            s = self._clean(df, name)
-            if len(s) == 0:
-                return None
-            return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
-        except Exception:
-            return None
+        return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
 
 
 # ===========================================================================
