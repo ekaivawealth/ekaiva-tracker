@@ -373,14 +373,19 @@ class YFinanceSource:
             return pd.Series(dtype="float64")
         try:
             import yfinance as yf
-            import datetime as _dt
-            end = _dt.date.today()
-            start = end - _dt.timedelta(days=int(years * 365.25) + 30)
-            # Use Ticker.history() — returns a simple (non-MultiIndex) DataFrame
+            # Map years to a valid yfinance period string.
+            # start/end parameters behave differently from period for some NSE tickers
+            # (start/end silently returns empty; period works reliably).
+            if years >= 10:
+                period = "10y"
+            elif years >= 5:
+                period = "5y"
+            elif years >= 2:
+                period = "2y"
+            else:
+                period = "1y"
             hist = yf.Ticker(ticker).history(
-                start=start.strftime("%Y-%m-%d"),
-                end=(end + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
-                interval="1d", auto_adjust=True, actions=False
+                period=period, interval="1d", auto_adjust=True, actions=False
             )
             return self._to_series(hist, name)
         except Exception:
