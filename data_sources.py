@@ -349,48 +349,55 @@ class VixSource:
 class YFinanceSource:
     name = "yfinance"
 
+    @staticmethod
+    def _to_series(hist, name) -> pd.Series:
+        """Extract a clean daily close Series from a yf.Ticker.history() DataFrame."""
+        if hist is None or hist.empty:
+            return pd.Series(dtype="float64")
+        if "Close" not in hist.columns:
+            return pd.Series(dtype="float64")
+        s = hist["Close"].dropna()
+        if len(s) == 0:
+            return pd.Series(dtype="float64")
+        idx = pd.to_datetime(s.index)
+        if idx.tz is not None:
+            idx = idx.tz_localize(None)
+        idx = idx.normalize()
+        s = pd.Series(s.values, index=idx, name=name)
+        s = s[~s.index.duplicated(keep="last")].sort_index()
+        return s
+
     def daily_history(self, name, nse_label, token, years) -> pd.Series:
         ticker = config.YFINANCE_TICKERS.get(name)
         if not ticker:
             return pd.Series(dtype="float64")
         try:
             import yfinance as yf
-            # yfinance only accepts specific period strings (1y,2y,5y,10y,max).
-            # "6y" is invalid and silently returns empty — always use "max" for backfill.
-            df = yf.download(ticker, period="max", interval="1d",
-                             progress=False, auto_adjust=False)
-            if df is None or df.empty:
-                return pd.Series(dtype="float64")
-            # yfinance >=0.2 may return MultiIndex columns
-            close = df["Close"]
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-            s = close.dropna()
-            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
-            s = s[~s.index.duplicated(keep="last")].sort_index()
-            s.name = name
-            return s
+            import datetime as _dt
+            end = _dt.date.today()
+            start = end - _dt.timedelta(days=int(years * 365.25) + 30)
+            # Use Ticker.history() — returns a simple (non-MultiIndex) DataFrame
+            hist = yf.Ticker(ticker).history(
+                start=start.strftime("%Y-%m-%d"),
+                end=(end + _dt.timedelta(days=1)).strftime("%Y-%m-%d"),
+                interval="1d", auto_adjust=True, actions=False
+            )
+            return self._to_series(hist, name)
         except Exception:
             return pd.Series(dtype="float64")
 
     def latest_close(self, name, nse_label, token):
-        # Fetch only last 30 days to keep it fast
         ticker = config.YFINANCE_TICKERS.get(name)
         if not ticker:
             return None
         try:
             import yfinance as yf
-            df = yf.download(ticker, period="1mo", interval="1d",
-                             progress=False, auto_adjust=False)
-            if df is None or df.empty:
-                return None
-            close = df["Close"]
-            if isinstance(close, pd.DataFrame):
-                close = close.iloc[:, 0]
-            s = close.dropna()
+            hist = yf.Ticker(ticker).history(
+                period="5d", interval="1d", auto_adjust=True, actions=False
+            )
+            s = self._to_series(hist, name)
             if len(s) == 0:
                 return None
-            s.index = pd.to_datetime(s.index).tz_localize(None).normalize()
             return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
         except Exception:
             return None
