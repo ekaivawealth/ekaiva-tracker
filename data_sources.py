@@ -350,18 +350,20 @@ class YFinanceSource:
     name = "yfinance"
 
     @staticmethod
-    def _to_series(hist, name) -> pd.Series:
-        """Extract a clean daily close Series from a yf.Ticker.history() DataFrame."""
-        if hist is None or hist.empty:
+    def _clean(df, name) -> pd.Series:
+        """Extract a clean daily close Series from a yf.download() result."""
+        if df is None or df.empty:
             return pd.Series(dtype="float64")
-        if "Close" not in hist.columns:
-            return pd.Series(dtype="float64")
-        s = hist["Close"].dropna()
+        close = df["Close"]
+        # yfinance >= 0.2 returns MultiIndex columns for single-ticker download
+        if isinstance(close, pd.DataFrame):
+            close = close.iloc[:, 0]
+        s = close.dropna()
         if len(s) == 0:
             return pd.Series(dtype="float64")
         idx = pd.to_datetime(s.index)
         if idx.tz is not None:
-            idx = idx.tz_localize(None)
+            idx = idx.tz_convert(None)
         idx = idx.normalize()
         s = pd.Series(s.values, index=idx, name=name)
         s = s[~s.index.duplicated(keep="last")].sort_index()
@@ -373,23 +375,10 @@ class YFinanceSource:
             return pd.Series(dtype="float64")
         try:
             import yfinance as yf
-            # Map years to a valid yfinance period string (round UP to nearest valid value).
-            # Valid strings: 1y, 2y, 5y, 10y, max.
-            # start/end parameters silently return empty for many NSE tickers; period works.
-            if years > 10:
-                period = "max"
-            elif years > 5:
-                period = "10y"
-            elif years > 2:
-                period = "5y"   # covers 3, 4, 5 years — enough for SMA200 (200 weeks)
-            elif years > 1:
-                period = "2y"
-            else:
-                period = "1y"
-            hist = yf.Ticker(ticker).history(
-                period=period, interval="1d", auto_adjust=True, actions=False
-            )
-            return self._to_series(hist, name)
+            # "5y" is a valid Yahoo Finance period and gives enough history for SMA200
+            df = yf.download(ticker, period="5y", interval="1d",
+                             progress=False, auto_adjust=False)
+            return self._clean(df, name)
         except Exception:
             return pd.Series(dtype="float64")
 
@@ -399,10 +388,9 @@ class YFinanceSource:
             return None
         try:
             import yfinance as yf
-            hist = yf.Ticker(ticker).history(
-                period="5d", interval="1d", auto_adjust=True, actions=False
-            )
-            s = self._to_series(hist, name)
+            df = yf.download(ticker, period="5d", interval="1d",
+                             progress=False, auto_adjust=False)
+            s = self._clean(df, name)
             if len(s) == 0:
                 return None
             return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
