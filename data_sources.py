@@ -518,10 +518,9 @@ class YFinanceSource:
                 return (live.index.max().strftime("%Y-%m-%d"), float(live.iloc[-1]))
         except Exception:
             pass
-        # Fall back to seed — shows last seeded price rather than a blank "—"
-        seed = _load_seed(name)
-        if len(seed) > 0:
-            return (seed.index.max().strftime("%Y-%m-%d"), float(seed.iloc[-1]))
+        # Return None — let run_daily.py fall back to NiftyIndicesSource.latest_close()
+        # which pulls today's price from the live daily snapshot CSV.
+        # Do NOT return seed data here: seed dates are stale and would block NiftyIndices fallback.
         return None
 
 
