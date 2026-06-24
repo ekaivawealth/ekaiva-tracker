@@ -346,6 +346,32 @@ class VixSource:
 # ===========================================================================
 # Yahoo Finance (primary source — no account, works from datacenter IPs)
 # ===========================================================================
+SEED_DIR = "data/seeds"
+
+
+def _seed_path(name: str) -> str:
+    fname = name.replace(" ", "_").replace("&", "and").replace("/", "_")
+    return os.path.join(SEED_DIR, f"{fname}.csv")
+
+
+def _load_seed(name: str) -> pd.Series:
+    """Return pre-seeded historical Close series, or empty Series if not found."""
+    path = _seed_path(name)
+    if not os.path.exists(path):
+        return pd.Series(dtype="float64")
+    try:
+        df = pd.read_csv(path, index_col=0, parse_dates=True)
+        s = df.iloc[:, 0].dropna()
+        idx = pd.to_datetime(s.index)
+        if hasattr(idx, "tz") and idx.tz is not None:
+            idx = idx.tz_convert(None)
+        idx = idx.normalize()
+        s = pd.Series(s.values, index=idx, name=name)
+        return s[~s.index.duplicated(keep="last")].sort_index()
+    except Exception:
+        return pd.Series(dtype="float64")
+
+
 class YFinanceSource:
     """Downloads ALL tickers in ONE batch call to avoid Yahoo Finance rate-limiting.
 
@@ -459,11 +485,22 @@ class YFinanceSource:
     def daily_history(self, name, nse_label, token, years) -> pd.Series:
         if not config.YFINANCE_TICKERS.get(name):
             return pd.Series(dtype="float64")
+        # Seed file takes priority — it was generated locally where Yahoo Finance
+        # works fully, so it always has complete 5-year history.
+        seed = _load_seed(name)
+        if len(seed) >= 200:
+            return seed
         try:
             self._prefetch()
-            return self._cache.get(name, pd.Series(dtype="float64"))
+            live = self._cache.get(name, pd.Series(dtype="float64"))
+            # Merge seed + live: seed provides history, live extends it
+            if len(seed) > len(live):
+                combined = pd.concat([seed, live])
+                combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+                return combined
+            return live
         except Exception:
-            return pd.Series(dtype="float64")
+            return seed if len(seed) > 0 else pd.Series(dtype="float64")
 
     def latest_close(self, name, nse_label, token):
         # Reuse the cached data — the batch already includes today's close
