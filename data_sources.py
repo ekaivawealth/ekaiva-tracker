@@ -379,39 +379,82 @@ class YFinanceSource:
         print(f"  [yf] Fetching {len(ticker_map)} tickers individually...", flush=True)
         for name, ticker in ticker_map.items():
             time.sleep(1.0)   # 1 s gap — keeps us under Yahoo Finance rate limit
-            try:
-                df = yf.download(ticker, period="5y", interval="1d",
-                                 progress=False, auto_adjust=False)
-            except Exception as e:
-                self._cache[name] = pd.Series(dtype="float64")
-                print(f"  [yf] ERROR {name} ({ticker}): {e}", flush=True)
-                continue
+            s = self._fetch_one(yf, ticker, name)
+            self._cache[name] = s
+            if len(s) >= 10:
+                print(f"  [yf] OK {name} ({ticker}): {len(s)} rows", flush=True)
+            else:
+                print(f"  [yf] EMPTY/SHORT {name} ({ticker}): {len(s)} rows", flush=True)
 
-            if df is None or df.empty:
-                self._cache[name] = pd.Series(dtype="float64")
-                print(f"  [yf] EMPTY {name} ({ticker})", flush=True)
-                continue
+        self._ready = True
 
-            # yfinance >= 0.2 may return MultiIndex for single-ticker download
-            close = df["Close"]
+    @staticmethod
+    def _fetch_one(yf, ticker: str, name: str) -> pd.Series:
+        """Fetch 5y daily close for one ticker.
+
+        Strategy:
+          1. yf.download() with period="5y"  — fast, works for most ^ tickers
+          2. If <10 rows and .NS ticker: Ticker().history() — different endpoint,
+             works for .NS index tickers that download() underserves
+          3. If still <10 rows: Ticker().history(period="max") — catches anything
+             newer than 5y or with a short-history quirk
+        """
+
+        def _clean(raw) -> pd.Series:
+            if raw is None or (hasattr(raw, "empty") and raw.empty):
+                return pd.Series(dtype="float64")
+            close = raw["Close"]
             if isinstance(close, pd.DataFrame):
                 close = close.iloc[:, 0]
             s = close.dropna()
             if len(s) == 0:
-                self._cache[name] = pd.Series(dtype="float64")
-                print(f"  [yf] EMPTY {name} ({ticker})", flush=True)
-                continue
-
+                return pd.Series(dtype="float64")
             idx = pd.to_datetime(s.index)
-            if idx.tz is not None:
+            if hasattr(idx, "tz") and idx.tz is not None:
                 idx = idx.tz_convert(None)
             idx = idx.normalize()
             s = pd.Series(s.values, index=idx, name=name)
-            s = s[~s.index.duplicated(keep="last")].sort_index()
-            self._cache[name] = s
-            print(f"  [yf] OK {name} ({ticker}): {len(s)} rows", flush=True)
+            return s[~s.index.duplicated(keep="last")].sort_index()
 
-        self._ready = True
+        # --- attempt 1: download() ---
+        try:
+            raw = yf.download(ticker, period="5y", interval="1d",
+                              progress=False, auto_adjust=False)
+            s = _clean(raw)
+        except Exception:
+            s = pd.Series(dtype="float64")
+
+        if len(s) >= 10:
+            return s
+
+        # --- attempt 2: Ticker().history() for .NS tickers (different API path) ---
+        if ticker.endswith(".NS"):
+            try:
+                time.sleep(0.5)
+                raw = yf.Ticker(ticker).history(period="5y", interval="1d",
+                                                auto_adjust=False)
+                s2 = _clean(raw)
+                if len(s2) > len(s):
+                    s = s2
+            except Exception:
+                pass
+
+        if len(s) >= 10:
+            return s
+
+        # --- attempt 3: period="max" (catches short-history indices) ---
+        if ticker.endswith(".NS"):
+            try:
+                time.sleep(0.5)
+                raw = yf.Ticker(ticker).history(period="max", interval="1d",
+                                                auto_adjust=False)
+                s3 = _clean(raw)
+                if len(s3) > len(s):
+                    s = s3
+            except Exception:
+                pass
+
+        return s
 
     def daily_history(self, name, nse_label, token, years) -> pd.Series:
         if not config.YFINANCE_TICKERS.get(name):
