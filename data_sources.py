@@ -485,29 +485,44 @@ class YFinanceSource:
     def daily_history(self, name, nse_label, token, years) -> pd.Series:
         if not config.YFINANCE_TICKERS.get(name):
             return pd.Series(dtype="float64")
-        # Seed file takes priority — it was generated locally where Yahoo Finance
-        # works fully, so it always has complete 5-year history.
+
+        # Load seed (provides full multi-year history for SMA calculation)
         seed = _load_seed(name)
-        if len(seed) >= 200:
-            return seed
+
+        # Always try live data too — it extends the seed with recent prices
         try:
             self._prefetch()
             live = self._cache.get(name, pd.Series(dtype="float64"))
-            # Merge seed + live: seed provides history, live extends it
-            if len(seed) > len(live):
-                combined = pd.concat([seed, live])
-                combined = combined[~combined.index.duplicated(keep="last")].sort_index()
-                return combined
-            return live
         except Exception:
-            return seed if len(seed) > 0 else pd.Series(dtype="float64")
+            live = pd.Series(dtype="float64")
+
+        # Merge: seed covers history, live adds recent data on top
+        if len(seed) > 0 and len(live) > 0:
+            combined = pd.concat([seed, live])
+            combined = combined[~combined.index.duplicated(keep="last")].sort_index()
+            return combined
+        if len(seed) >= 200:
+            return seed          # no live data — seed alone is sufficient for SMA
+        if len(live) > 0:
+            return live          # no seed yet — use live directly
+        return pd.Series(dtype="float64")
 
     def latest_close(self, name, nse_label, token):
-        # Reuse the cached data — the batch already includes today's close
-        s = self.daily_history(name, nse_label, token, years=0)
-        if len(s) == 0:
+        if not config.YFINANCE_TICKERS.get(name):
             return None
-        return (s.index.max().strftime("%Y-%m-%d"), float(s.iloc[-1]))
+        # Try live cache first (today's price)
+        try:
+            self._prefetch()
+            live = self._cache.get(name, pd.Series(dtype="float64"))
+            if len(live) > 0:
+                return (live.index.max().strftime("%Y-%m-%d"), float(live.iloc[-1]))
+        except Exception:
+            pass
+        # Fall back to seed — shows last seeded price rather than a blank "—"
+        seed = _load_seed(name)
+        if len(seed) > 0:
+            return (seed.index.max().strftime("%Y-%m-%d"), float(seed.iloc[-1]))
+        return None
 
 
 # ===========================================================================

@@ -129,7 +129,7 @@ YFINANCE_TICKERS = {
     # Sectoral
     "Nifty Pharma":                      "^CNXPHARMA",
     "Nifty Healthcare":                  "NIFTY_HEALTHCARE.NS",   # ^CNXHEALTH doesn't exist
-    "Nifty MidSmall Healthcare":         "^NIFTY_MIDSMALL_HLTHCRE",
+    "Nifty MidSmall Healthcare":         "NIFTYMIDSMLHLTHCRE.NS",      # ChatGPT-confirmed correct ticker
     "Nifty IT":                          "^CNXIT",
     "Nifty Auto":                        "^CNXAUTO",
     "Nifty Metal":                       "^CNXMETAL",
